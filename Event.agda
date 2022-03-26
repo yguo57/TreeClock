@@ -2,16 +2,18 @@
 -- History-carrying events.
 ------------------------------------------------------------------------
 
-module Event where
-
-open import Postulates
-open import Data.Fin as Fin using (Fin)
 open import Data.Nat as Nat
+
+module Event (n : ℕ) (Message : Set) where
+
+open import Data.Fin as Fin using (Fin)
 open import Data.Nat.Properties as ℕₚ
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Binary.HeterogeneousEquality using (_≅_; refl)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; _≢_)
 open import Relation.Nullary using (¬_; yes; no)
+
+
 
 ProcessId = Fin n
 

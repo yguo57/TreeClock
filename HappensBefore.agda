@@ -2,13 +2,13 @@
 -- The happens-before relation.
 ------------------------------------------------------------------------
 
-module HappensBefore where
+open import Data.Nat as ℕ
 
-open import Postulates
-open import Event
+module HappensBefore (n : ℕ) (Message : Set) where
+
+open import Event n Message
 open import Data.Empty using (⊥-elim)
 open import Data.Fin as Fin using (Fin)
-open import Data.Nat as ℕ
 open import Data.Nat.Properties as ℕₚ
 open import Data.Product using (_×_; _,_)
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂; [_,_]′)

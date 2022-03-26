@@ -1,13 +1,13 @@
-{-# OPTIONS --rewriting #-}
-  
-open import Event
-open import HappensBefore
-open import Postulates
+open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_<?_;_≤_)
+
+module TreeClock (n : ℕ) (Message : Set) where
+
+open import Event n Message
+open import HappensBefore n Message
 
 open import Data.Bool using (Bool;true;false;not;T;if_then_else_)
 open import Data.Empty using (⊥-elim;⊥)
 open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;fromMaybe)
-open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_<?_;_≤_)
 open import Data.Fin as Fin using (Fin;fromℕ)
 open import Data.Product using (_×_;_,_)
 open import Data.List using (List;[];_∷_;foldl;[_])
@@ -21,7 +21,7 @@ open import Function using (case_of_;_∘_)
 open import Relation.Nullary using (yes;no;¬_)
 open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Relation.Binary renaming (Decidable to Dec)
-open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;_≢_;inspect;subst;setoid;≢-sym;sym)
+open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl)
 
 -- util for maybe
 appendMaybe : ∀{A : Set} → Maybe A → List A → List A
@@ -138,81 +138,3 @@ treeClock[_] : Event pid eid → ClockTree
 treeClock[_] {pid} init = initTree pid
 treeClock[_] {pid} (send x e) = inc treeClock[ e ]
 treeClock[_] {pid} (recv e′ e) = join treeClock[ e′ ] treeClock[ e ]
-
-
-module _ where
-
-  postulate
-    m₁ m₂ m₃ m₄ m₅ : Message
-    p₁ p₂ p₃ p₄ : ProcessId
-    
-  pVec = p₁ V.∷ p₂ V.∷ p₃ V.∷ p₄ V.∷ V.[]
-
-  postulate
-    unique : Unique pVec
-    unique-Fin-≢ : ∀{p q : ProcessId} (neq₁ : p ≢ q) (neq₂ : p ≢ q) → neq₁ ≡ neq₂
-
-  unique⇒≢ : ∀ i j → {T (not ⌊ i Fin.≟ j ⌋)} → lookup pVec i ≢ lookup pVec j
-  unique⇒≢ i j x with no ≢ ← i Fin.≟ j = ≢ (lookup-injective (setoid ProcessId) unique i j x)
-  
-  ≢⇒≟-no : ∀{p q : ProcessId} (neq : p ≢ q) → (p Fin.≟ q) ≡ no neq
-  ≢⇒≟-no {p} {q} neq with p Fin.≟ q
-  ... | no  neq₂ = Eq.cong no (unique-Fin-≢ neq₂ neq)
-  ... | yes eq   = ⊥-elim (neq eq)
-
-  distinctInVec : ∀{n} → ProcessId → ProcessId → Vec ProcessId n →  Bool
-  distinctInVec x y V.[] = false
-  distinctInVec x y (h V.∷ t) with x Fin.≟ h | y Fin.≟ h
-  ... | yes _ | yes _ = false
-  ... | no _  | yes _ = true
-  ... | yes _ | no _  = true
-  ... | no _  | no _  = false  
-  
-  postulate
-    all₀ : ∀{p q : ProcessId} → p ≡ q
-    all₁ : ∀{p q : ProcessId} → p ≢ q
-    all₂ : ∀{p q : ProcessId} → (p Fin.≟ q) ≡ (if (distinctInVec p q pVec) then yes all₀ else no all₁)
-    
-  open import Agda.Builtin.Equality
-  open import Agda.Builtin.Equality.Rewrite
-  
-  {-# REWRITE all₂  #-}
- 
-  ev₁₁ : Event p₁ 1
-  ev₁₁ = send m₁ init
-  
-  tree₁₁ : ClockTree
-  tree₁₁ = node p₁ 1 []
-  
-  _ : treeClock[ ev₁₁ ] ≡ tree₁₁
-  _ = refl
-
-  ev₂₁ : Event p₂ 2
-  ev₂₁ = send m₂ (recv ev₁₁ init)
-
-  tree₂₁ : ClockTree
-  tree₂₁ = inc (node p₂ 0 [ tree₁₁ ])
-
-  test₁ :  treeClock[ ev₂₁ ] ≡ tree₂₁
-  test₁  = refl 
-
-  ev₂₂ : Event p₂ 3
-  ev₂₂ = send m₃ ev₂₁
-
-  ev₃₁ : Event p₃ 2
-  ev₃₁ = send m₄ (recv ev₂₁ init)
-
-  ev₃₂ : Event p₃ 3
-  ev₃₂ = send m₅ ev₃₁
-
-  ev₄₁ : Event p₄ 1
-  ev₄₁ = recv ev₂₂ init
-
-  ev₄₂ : Event p₄ 2
-  ev₄₂ = recv ev₃₂ ev₄₁
-
-  test₂ : treeClock[ ev₄₁ ] ≡ node p₄ 0 (node p₂ 2 (node p₁ 1 [] ∷ []) ∷ [])
-  test₂ = refl
-  
-  test₃ : treeClock[ ev₄₂ ] ≡ ?
-  test₃  = ?
