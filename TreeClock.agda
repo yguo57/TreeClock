@@ -5,19 +5,13 @@ module TreeClock (n : ℕ) (Message : Set) where
 open import Event n Message
 open import HappensBefore n Message
 
-open import Data.Bool using (Bool;true;false;not;T;if_then_else_)
-open import Data.Empty using (⊥-elim;⊥)
 open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;fromMaybe)
 open import Data.Fin as Fin using (Fin;fromℕ)
 open import Data.Product using (_×_;_,_)
 open import Data.List using (List;[];_∷_;foldl;[_])
 open import Data.Unit using (⊤)
 open import Data.Vec as V hiding (init;[_];[];_∷_)
-open import Data.Vec.Relation.Unary.All as All hiding (lookup)
-open import Data.Vec.Relation.Unary.AllPairs.Core as AllPairs
-open import Data.Vec.Relation.Unary.Unique.Propositional using (Unique)
-open import Data.Vec.Relation.Unary.Unique.Setoid.Properties using (lookup-injective)
-open import Function using (case_of_;_∘_)
+open import Function using (case_of_)
 open import Relation.Nullary using (yes;no;¬_)
 open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Relation.Binary renaming (Decidable to Dec)
@@ -48,26 +42,25 @@ mutual
     cataList alg (x ∷ xs) = cata alg x ∷ cataList alg xs
 
     cata : ∀{ℓ} {T : Set ℓ} {K V} → (K → V → List T → T) → MapTree K V → T
-    cata alg (node k v cld) = alg k v (cataList alg cld)
+    cata alg (node k v ts) = alg k v (cataList alg ts)
 
  -- TODO stretch : add tree size check
- -- TODO : support attach time of nodes
  
-ClockTree = MapTree ProcessId ℕ
+ClockTree = MapTree ProcessId (ℕ × ℕ)
 
-lookupNode : ProcessId → ClockTree → Maybe ℕ
-lookupNode q (node p n cld) = case q Fin.≟ p of λ where
+lookupNode : ProcessId → ClockTree → Maybe (ℕ × ℕ)
+lookupNode q (node p n ts) = case q Fin.≟ p of λ where
     (yes _) → just n
-    (no  _) → go cld
+    (no  _) → go ts
   where
-    go : List ClockTree → Maybe ℕ
+    go : List ClockTree → Maybe (ℕ × ℕ)
     go []       = nothing
     go (t ∷ ts) = (lookupNode q t) <∣> (go ts)
 
-updateNode : ProcessId → ℕ → ClockTree → Maybe ClockTree 
-updateNode  q m (node p n cld) = case q Fin.≟ p of λ where
-     (yes _) → just (node p m cld)
-     (no  _) → helper (go cld)
+updateNode : ProcessId → (ℕ × ℕ) → ClockTree → Maybe ClockTree 
+updateNode  q m (node p n ts) = case q Fin.≟ p of λ where
+     (yes _) → just (node p n ts)
+     (no  _) → helper (go ts)
   where
     go :  List ClockTree → List ClockTree
     go []       = []
@@ -76,14 +69,14 @@ updateNode  q m (node p n cld) = case q Fin.≟ p of λ where
     ... | nothing = go ts
     helper : List ClockTree → Maybe ClockTree
     helper []       = nothing
-    helper (t ∷ ts) = just (node p m  (t ∷ ts))
+    helper (t ∷ ts) = just (node p m (t ∷ ts))
 
  -- remove all nodes with the given processId
  -- all children are removed along with parent
 removeNode : ProcessId →  ClockTree → Maybe ClockTree 
-removeNode q (node p n cld) = case q Fin.≟ p of λ where
+removeNode q (node p n ts) = case q Fin.≟ p of λ where
      (yes _) → nothing
-     (no  _) → just (node p n (go cld))
+     (no  _) → just (node p n (go ts))
   where
     go : List ClockTree → List ClockTree
     go []       = []
@@ -97,20 +90,26 @@ removeNode q (node p n cld) = case q Fin.≟ p of λ where
 --     thrMap : ProcessId → ClockTree
 
 initTree : ProcessId → ClockTree
-initTree p = node p 0 []
+initTree p = node p (0 , 0) []
 
 inc : ClockTree → ClockTree
-inc (node p n cld) =  node p (suc n) cld
+inc (node p (c , a) ts) =  node p (suc c , a) ts
 
 pushChild : ClockTree → ClockTree → ClockTree
-pushChild t (node p n cld) = node p n (t ∷ cld)
+pushChild (node q (c , _) ts) (node p n@(c′ , _) ts′) = node p n (newChild ∷ ts′)
+  where
+   newChild = node q (c , c′) ts
 
- -- discover if updated nodes in the first tree compared to the second tree
- 
+ -- TODO : support early termination using attach time of nodes (only useful with thrMap)
+ -- discover any updated nodes in the first tree compared to the second tree
+
 getUpdatedNodesJoin : ClockTree →  ClockTree → Maybe ClockTree
-getUpdatedNodesJoin (node p n cld) t′ = case lookupNode p t′ of λ where
-    nothing  → just (node p n (go cld))
-    (just m) → case m <? n of λ where (yes _ ) → just (node p n (go cld)); (no _) → nothing
+getUpdatedNodesJoin (node p (c , a) ts) t′ = case lookupNode p t′ of λ where
+    nothing  → just (node p (c , a)  (go ts))
+    (just (c′ , a′)) →
+      case c′ <? c of λ where
+        (yes _ ) → just (node p (c , a) (go ts))
+        (no _) → nothing
   where
     go : List ClockTree  → List ClockTree
     go []       = []
@@ -119,7 +118,7 @@ getUpdatedNodesJoin (node p n cld) t′ = case lookupNode p t′ of λ where
  -- detach nodes present in the first tree from the second
  
 detachNodes : ClockTree →  ClockTree → Maybe ClockTree
-detachNodes (node p _ cld) t = removeNode p t >>= (λ t′ → go cld t′)
+detachNodes (node p _ ts) t = removeNode p t >>= (λ t′ → go ts t′)
   where
     go : List ClockTree → ClockTree → Maybe ClockTree
     go []       t′     = just t′
@@ -129,10 +128,10 @@ detachNodes (node p _ cld) t = removeNode p t >>= (λ t′ → go cld t′)
  
 join : ClockTree → ClockTree → ClockTree
 join t₁ t₂ with getUpdatedNodesJoin t₁ t₂
-... | nothing  = t₂
+... | nothing  = inc t₂
 ... | just t₁′ with detachNodes t₁′ t₂
 ...             | nothing  = t₁′
-...             | just t₂′ = pushChild t₁′ t₂′
+...             | just t₂′ = pushChild t₁′ (inc t₂′)
 
 treeClock[_] : Event pid eid → ClockTree
 treeClock[_] {pid} init = initTree pid
