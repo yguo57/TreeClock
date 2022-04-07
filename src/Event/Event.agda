@@ -4,7 +4,7 @@
 
 open import Data.Nat as Nat
 
-module Event (n : ℕ) (Message : Set) where
+module Event.Event (n : ℕ) (Message : Set) where
 
 open import Data.Fin as Fin using (Fin)
 open import Data.Nat.Properties as ℕₚ

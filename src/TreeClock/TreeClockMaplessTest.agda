@@ -4,10 +4,10 @@ open import Data.Product using(_×_;_,_)
 open import Data.List using ([];_∷_;[_])
 open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl)
 
-module TreeClockMaplessTest (Message : Set) (m₁ m₂ m₃ : Message)where
+module TreeClock.TreeClockMaplessTest (Message : Set) (m₁ m₂ m₃ : Message)where
 
-open import Event 4 Message
-open import TreeClockMapless 4 Message
+open import Event.Event 4 Message
+open import TreeClock.TreeClockMapless 4 Message
 
 p₀ p₁ p₂ p₃ : ProcessId 
 p₀ = fromℕ< {m = 0}(s≤s z≤n)

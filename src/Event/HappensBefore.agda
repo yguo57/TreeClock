@@ -4,9 +4,9 @@
 
 open import Data.Nat as ℕ
 
-module HappensBefore (n : ℕ) (Message : Set) where
+module Event.HappensBefore (n : ℕ) (Message : Set) where
 
-open import Event n Message
+open import Event.Event n Message
 open import Data.Empty using (⊥-elim)
 open import Data.Fin as Fin using (Fin)
 open import Data.Nat.Properties as ℕₚ

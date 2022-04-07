@@ -1,17 +1,15 @@
 open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_≤?_;_≤_;_<?_)
 
-module TreeClockMapless (n : ℕ) (Message : Set) where
+module TreeClock.TreeClockMapless (n : ℕ) (Message : Set) where
 
-open import Event n Message
-open import HappensBefore n Message
+open import Event.Event n Message
+open import Event.HappensBefore n Message
 
 open import Data.Bool using (if_then_else_)
-open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;fromMaybe)
+open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;decToMaybe;boolToMaybe)
 open import Data.Fin as Fin using (Fin;fromℕ)
 open import Data.Product using (_×_;_,_;map₁;proj₁)
 open import Data.List using (List;[];_∷_;foldl;[_])
-open import Data.List.Membership.Propositional using (_∈_)
-open import Data.List.Relation.Unary.Any using(Any;here;there)
 open import Data.Unit using (⊤)
 open import Data.Vec as V hiding (init;[_];[];_∷_)
 open import Function using (case_of_)
@@ -24,6 +22,9 @@ open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;inspec
 appendMaybe : ∀{A : Set} → Maybe A → List A → List A
 appendMaybe nothing  xs = xs
 appendMaybe (just x) xs = x ∷ xs
+
+_>>_ : ∀ {A B : Set} → Maybe A → Maybe B → Maybe B
+_>>_ ma mb = ma >>= λ _ → mb
 
 private
   variable
@@ -95,18 +96,17 @@ pushChild (node q (c , _) ts) (node p n@(c′ , _) ts′) = node p n (newChild �
  -- discover any updated nodes in the first tree compared to the second tree
 
 getUpdatedNodesJoin : ClockTree →  ClockTree → Maybe ClockTree
-getUpdatedNodesJoin (node p (c , a) ts) t′ = case lookupNode p t′ of λ where
+getUpdatedNodesJoin (node p (c , a) ts) t′ =
+   -- bug? can't use decToMaybe (c <? c′) 
+  case (do (c′ , _ ) ← lookupNode p t′ ; boolToMaybe (does (c <? c′))) of λ where
     nothing  → just (node p (c , a)  (go ts))
-    (just (c′ , _ )) → if does(c′ ≤? c)
-                       then just (node p (c , a) (go ts))
-                       else nothing
+    (just _) → nothing
   where
     -- TODO : support early termination using attach time of nodes (only useful with thrMap)
-    go : List ClockTree  → List ClockTree
+    go : List ClockTree → List ClockTree
     go []       = []
     go (t ∷ ts) = appendMaybe (getUpdatedNodesJoin t t′ )(go ts)
 
-    
  -- detach nodes present in the first tree from the second
  
 detachNodes : ClockTree →  ClockTree → Maybe ClockTree
@@ -130,26 +130,4 @@ treeClock[_] {pid} init = initTree pid
 treeClock[_] {pid} (send x e) = inc treeClock[ e ]
 treeClock[_] {pid} (recv e′ e) = join treeClock[ e′ ] treeClock[ e ]
 
-data _childOf_ {K : Set} {V : Set} : MapTree K V → MapTree K V → Set where
-  direct : ∀ {k : K} {v : V} {ts : List (MapTree K V)} → (t₁ : MapTree K V) → t₁ ∈ ts → t₁ childOf (node k v ts)
-  trans : ∀{t₁ t₂ t₃} → t₁ childOf t₂ → t₂ childOf t₃  → t₁ childOf t₃
 
-inc-inrrelev-child :  ∀{k v k′ v′ ts ts′} →  inc (node k′ v′ ts′) ≡ (node k v ts) → ts ≡ ts′
-inc-inrrelev-child {ts = ts} {ts′ = .ts} refl = refl
-
-inc-irrelev-childOf₁ : ∀ {t t′} → (t childOf t′) → (t childOf (inc t′))
-inc-irrelev-childOf₁ (direct _ x) = direct _ x
-inc-irrelev-childOf₁ (trans x y)  = trans x (inc-irrelev-childOf₁ y)
-
-inc-irrelev-childOf₂ : ∀ {t t′} → (t childOf (inc t′)) → (t childOf t′)
-inc-irrelev-childOf₂ {t′ = t′} x            with inc t′  | inspect inc t′ 
-inc-irrelev-childOf₂ {t′ = node _ _ ts′} (direct _ x)    | _  | Eq.[ eq ] rewrite inc-inrrelev-child eq = direct _ x
-inc-irrelev-childOf₂ {t′ = t′} (trans x y)               | _  | Eq.[ refl ] = trans x (inc-irrelev-childOf₂ y)
-
--- child⊏parent : treeClock[ e ] childOf treeClock[ e′ ] → e ⊏ e′
--- child⊏parent {e = e} {e′ = e′}   _                            with treeClock[ e′ ] | inspect treeClock[_] e′
--- child⊏parent {e = e} {e′ = init} (direct _ (here refl))         | _               | ()
--- child⊏parent {e = e} {e′ = send m e′} x                         | _               | Eq.[ refl ] = trans (child⊏parent (inc-irrelev-childOf₂ x )) processOrder₁
--- child⊏parent {e = e} {e′ = recv e″ e′₁} (direct _ (here refl))  | node x₁ x₂ .(treeClock[ e ] ∷ _) | w = {!!}
--- child⊏parent {e = e} {e′ = e′} (direct _ (there x))             | node x₁ x₂ .(_ ∷ _) | w  = {!!}
--- child⊏parent {e = e} {e′ = e′} (trans x y)                      | _               | Eq.[ eq ] = trans (child⊏parent x) (child⊏parent {!!})

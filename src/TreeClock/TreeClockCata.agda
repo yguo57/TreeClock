@@ -1,3 +1,7 @@
+------------------------------------------------------------------------
+-- alternative version of helper functions using catamorphisms
+------------------------------------------------------------------------
+
 open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_<?_;_≤_)
 
 module TreeClockCata (n : ℕ) (Message : Set) where
