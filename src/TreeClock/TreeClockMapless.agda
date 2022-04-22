@@ -6,7 +6,7 @@ open import Event.Event n Message
 open import Event.HappensBefore n Message
 
 open import Data.Bool using (if_then_else_)
-open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;decToMaybe;boolToMaybe)
+open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_)
 open import Data.Fin as Fin using (Fin;fromℕ)
 open import Data.Product using (_×_;_,_;map₁;proj₁)
 open import Data.List using (List;[];_∷_;foldl;[_])
@@ -48,7 +48,7 @@ ClockTree = MapTree ProcessId Value
  -- lookup the first node with ProcessId q
  
 lookupNode : ProcessId → ClockTree → Maybe Value
-lookupNode q (node p n ts) = if does(q Fin.≟ p)
+lookupNode q (node p n ts) = if does (q Fin.≟ p) 
                              then just n
                              else go ts
   where
@@ -97,18 +97,19 @@ pushChild (node q (c , _) ts) (node p n@(c′ , _) ts′) = node p n (newChild �
 
 getUpdatedNodesJoin : ClockTree →  ClockTree → Maybe ClockTree
 getUpdatedNodesJoin (node p (c , a) ts) t′ =
-   -- bug? can't use decToMaybe (c <? c′) 
-  case (do (c′ , _ ) ← lookupNode p t′ ; boolToMaybe (does (c <? c′))) of λ where
-    nothing  → just (node p (c , a)  (go ts))
-    (just _) → nothing
+  case (lookupNode p t′) of λ where
+    nothing  → continue
+    (just (c′ , _ )) → if does (c <? c′) then nothing else continue
   where
     -- TODO : support early termination using attach time of nodes (only useful with thrMap)
     go : List ClockTree → List ClockTree
     go []       = []
     go (t ∷ ts) = appendMaybe (getUpdatedNodesJoin t t′ )(go ts)
+    continue : Maybe ClockTree
+    continue = just (node p (c , a)  (go ts))
 
  -- detach nodes present in the first tree from the second
- 
+                        
 detachNodes : ClockTree →  ClockTree → Maybe ClockTree
 detachNodes (node p _ ts) t = proj₁ (removeNode p t) >>= (λ t′ →  go ts t′)
   where
@@ -122,12 +123,16 @@ join : ClockTree → ClockTree → ClockTree
 join t₁ t₂ with getUpdatedNodesJoin t₁ t₂
 ... | nothing  = inc t₂
 ... | just t₁′ with detachNodes t₁′ t₂
-...             | nothing  = t₁′
+      -- need to eliminate this case by restricting recvs
+...             | nothing  = inc t₁′ 
 ...             | just t₂′ = pushChild t₁′ (inc t₂′)
 
+
+ -- in the context of tree clocks, send is release and recv is acquire
+ 
 treeClock[_] : Event pid eid → ClockTree
 treeClock[_] {pid} init = initTree pid
 treeClock[_] {pid} (send x e) = inc treeClock[ e ]
-treeClock[_] {pid} (recv e′ e) = join treeClock[ e′ ] treeClock[ e ]
+treeClock[_] {pid} (recv _ e′ e) =  join treeClock[ e′ ] treeClock[ e ]
 
 
