@@ -1,6 +1,6 @@
 open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_≤?_;_≤_;_<?_)
 
-module TreeClock.TreeClock (n : ℕ) (Message : Set) where
+module TreeClock.WithMap.TreeClock (n : ℕ) (Message : Set) where
 
 open import Event.Event n Message
 open import Event.HappensBefore n Message

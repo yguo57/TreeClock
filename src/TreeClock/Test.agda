@@ -4,10 +4,10 @@ open import Data.Product using(_×_;_,_)
 open import Data.List using ([];_∷_;[_])
 open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl)
 
-module TreeClock.TreeClockMaplessTest (Message : Set) (m₁ m₂ m₃ : Message)where
+module TreeClock.Test (Message : Set) (m₁ m₂ m₃ : Message)where
 
 open import Event.Event 4 Message
-open import TreeClock.TreeClockMapless 4 Message
+open import TreeClock.TreeClock 4 Message
 
 p₀ p₁ p₂ p₃ : ProcessId 
 p₀ = fromℕ< {m = 0}(s≤s z≤n)
@@ -22,7 +22,7 @@ _ : treeClock[ ev₀₀ ] ≡ node p₀ (0 , 0) []
 _ = refl
 
 ev₁₁ : Event p₁ 1
-ev₁₁ = recv (λ ()) ev₀₀ init
+ev₁₁ = recv ev₀₀ init
 
 _ :  treeClock[ ev₁₁ ] ≡
   node p₁ (1 , 0)
@@ -33,16 +33,16 @@ ev₁₂ : Event p₁ 2
 ev₁₂ = send m₂ ev₁₁
 
 ev₂₁ : Event p₂ 1
-ev₂₁ = recv (λ ()) ev₁₁ init
+ev₂₁ = recv ev₁₁ init
 
 ev₂₂ : Event p₂ 2
 ev₂₂ = send m₃ ev₂₁
 
 ev₃₁ : Event p₃ 1
-ev₃₁ = recv (λ ()) ev₁₂ init
+ev₃₁ = recv ev₁₂ init
 
 ev₃₂ : Event p₃ 2
-ev₃₂ = recv (λ ()) ev₂₂ ev₃₁
+ev₃₂ = recv ev₂₂ ev₃₁
 
 _ : treeClock[ ev₃₂ ] ≡
   node p₃

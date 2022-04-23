@@ -23,15 +23,14 @@ private
     pid pid′ pid″ : ProcessId
     eid eid′ eid″ : LocalEventId
     m  : Message
-    pid≢ : pid ≢ pid′
     e  : Event pid  eid
     e′ : Event pid′ eid′
     e″ : Event pid″ eid″
 
 data _⊏_ : Event pid eid → Event pid′ eid′ → Set where
   processOrder₁ : e ⊏ send m e
-  processOrder₂ : e ⊏ recv pid≢ e′ e
-  send⊏recv     : e ⊏ recv pid≢ e e′
+  processOrder₂ : e ⊏ recv e′ e
+  send⊏recv     : e ⊏ recv e e′
   trans         : e ⊏ e′ → e′ ⊏ e″ → e ⊏ e″
 
 ------------------------------------------------------------------------
@@ -40,7 +39,7 @@ data _⊏_ : Event pid eid → Event pid′ eid′ → Set where
 size : Event pid eid → ℕ
 size init        = zero
 size (send _ e)  = suc (size e)
-size (recv _ e e′) = suc (size e + size e′)
+size (recv e e′) = suc (size e + size e′)
 
 ⊏⇒size< : e ⊏ e′ → size e < size e′
 ⊏⇒size< processOrder₁ = s≤s ≤-refl
@@ -72,7 +71,7 @@ eid<⇒⊏-locally {_} {eid} {e} {_} {suc eid′} {send m e′} x y with <-cmp e
 ... | tri> _ _ c = ⊥-elim (1+n≰n (≤-trans y c))
 ... | tri≈ _ b _ with uniquely-identify {e = e} {e′ = e′} x b
 ... | refl = processOrder₁
-eid<⇒⊏-locally {_} {eid} {e} {_} {suc eid′} {recv _ _ e′} x y with <-cmp eid eid′
+eid<⇒⊏-locally {_} {eid} {e} {_} {suc eid′} {recv  _ e′} x y with <-cmp eid eid′
 ... | tri< a _ _ = trans (eid<⇒⊏-locally x a) processOrder₂
 ... | tri> _ _ c = ⊥-elim (1+n≰n (≤-trans y c))
 ... | tri≈ _ b _ with uniquely-identify {e = e} {e′ = e′} x b
@@ -96,7 +95,7 @@ eid<⇒⊏-locally {_} {eid} {e} {_} {suc eid′} {recv _ _ e′} x y with <-cmp
 ... | inj₁ refl = inj₂ x
 ... | inj₂ z    = inj₂ (trans x z)
 
-⊏-inv₂ : e ⊏ recv pid≢ e′ e″ → (e ≅ e′ ⊎ e ⊏ e′) ⊎ (e ≅ e″ ⊎ e ⊏ e″)
+⊏-inv₂ : e ⊏ recv e′ e″ → (e ≅ e′ ⊎ e ⊏ e′) ⊎ (e ≅ e″ ⊎ e ⊏ e″)
 ⊏-inv₂ processOrder₂ = inj₂ (inj₁ refl)
 ⊏-inv₂ send⊏recv     = inj₁ (inj₁ refl)
 ⊏-inv₂ (trans x y) with ⊏-inv₂ y
@@ -111,7 +110,7 @@ eid<⇒⊏-locally {_} {eid} {e} {_} {suc eid′} {recv _ _ e′} x y with <-cmp
 ... | inj₁ refl | _      = inj₁ processOrder₁
 ... | inj₂ x    | inj₁ y = inj₁ (trans y processOrder₁)
 ... | inj₂ x    | inj₂ y = inj₂ ([ x , y ]′ ∘′ ⊏-inv₁)
-⊏-dec {e = e} {e′ = recv pid≢ e′ e″} with ≅-dec {e = e} {e′ = e′} | ⊏-dec {e = e} {e′ = e′} | ≅-dec {e = e} {e′ = e″} | ⊏-dec {e = e} {e′ = e″}
+⊏-dec {e = e} {e′ = recv e′ e″} with ≅-dec {e = e} {e′ = e′} | ⊏-dec {e = e} {e′ = e′} | ≅-dec {e = e} {e′ = e″} | ⊏-dec {e = e} {e′ = e″}
 ... | inj₁ refl | _      | _         | _      = inj₁ send⊏recv
 ... | _         | inj₁ y | _         | _      = inj₁ (trans y send⊏recv)
 ... | _         | _      | inj₁ refl | _      = inj₁ processOrder₂
@@ -126,7 +125,7 @@ data _⊏̸_ : Event pid eid → Event pid′ eid′ → Set where
   ⊏̸-eid  : pid[ e ] ≡ pid[ e′ ] → eid[ e′ ] ≤ eid[ e ] → e ⊏̸ e′
   ⊏̸-init : pid[ e ] ≢ pid[ e′ ] → e′ ≡ init → e ⊏̸ e′
   ⊏̸-send : pid[ e ] ≢ pid[ e′ ] → e ⊏̸ e′ → e ⊏̸ send m e′
-  ⊏̸-recv : pid[ e ] ≢ pid[ e′ ] → e ⊏̸ e′ → e ⊏̸ e″ → e ≇ e″ → e ⊏̸ recv pid≢ e″ e′
+  ⊏̸-recv : pid[ e ] ≢ pid[ e′ ] → e ⊏̸ e′ → e ⊏̸ e″ → e ≇ e″ → e ⊏̸ recv e″ e′
 
 ¬⇒⊏̸ : ¬ e ⊏ e′ → e ⊏̸ e′
 ¬⇒⊏̸ {pid} {_} {_} {pid′} {_} {_} with pid Fin.≟ pid′
@@ -144,7 +143,7 @@ data _⊏̸_ : Event pid eid → Event pid′ eid′ → Set where
   ¬⇒⊏̸₂ {e = e} {e′ = send m e′}  x y with ⊏-dec {e = e} {e′ = e′}
   ... | inj₁ z = ⊥-elim (y (trans z processOrder₁))
   ... | inj₂ z = ⊏̸-send x (¬⇒⊏̸ z)
-  ¬⇒⊏̸₂ {e = e} {e′ = recv pid≢ e″ e′} x y with ⊏-dec {e = e} {e′ = e′} | ⊏-dec {e = e} {e′ = e″} | ≅-dec {e = e} {e′ = e″}
+  ¬⇒⊏̸₂ {e = e} {e′ = recv e″ e′} x y with ⊏-dec {e = e} {e′ = e′} | ⊏-dec {e = e} {e′ = e″} | ≅-dec {e = e} {e′ = e″}
   ... | inj₁ z | _      | _         = ⊥-elim (y (trans z processOrder₂))
   ... | _      | inj₁ w | _         = ⊥-elim (y (trans w send⊏recv))
   ... | _      | _      | inj₁ refl = ⊥-elim (y send⊏recv)

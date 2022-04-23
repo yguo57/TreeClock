@@ -1,3 +1,4 @@
-*.agdai
-*.agda~
+**/*.agdai
+**/*.agda~
+**/*.agda#
 mathur-tree-clocks/*
