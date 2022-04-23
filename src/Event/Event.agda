@@ -25,7 +25,7 @@ data Event : ProcessId → LocalEventId → Set where
   send : ∀ {pid} {eid} →
          Message →
          Event pid eid → Event pid (suc eid)
-  recv : ∀ {pid pid′} {eid eid′} → pid ≢ pid′ → 
+  recv : ∀ {pid pid′} {eid eid′} → 
          Event pid′ eid′ → 
          Event pid eid → Event pid (suc eid)
 

@@ -1,8 +1,8 @@
 open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_≤?_;_≤_;_<?_;_<ᵇ_)
 
-module TreeClock.TreeClockMaplessProp (n : ℕ) (Message : Set) where
+module TreeClock.Properties (n : ℕ) (Message : Set) where
 
-open import TreeClock.TreeClockMapless n Message
+open import TreeClock.TreeClock n Message
 open import Event.Event n Message
 open import Event.HappensBefore n Message
 open import Data.Empty using (⊥-elim)
@@ -75,15 +75,13 @@ rootClk∘join≡suc∘rootClk t₁@(node pid (clk , _) _) t₂@(node pid′ (cl
 ... | just t₁′ | Eq.[ eq ] with detachNodes t₁′ t₂ | inspect (detachNodes t₁′) t₂
 ...            | just t₂′ | Eq.[ eq ] rewrite pushChild-fix-rootClk t₁′ (inc t₂′) | rootClk∘inc≡suc∘rootClk t₂′ | detachNodes-fix-rootClk t₁′ t₂ eq = cong suc refl 
 ...            | nothing  | _ rewrite rootClk∘inc≡suc∘rootClk t₁′ = cong suc {!!}
--- rewrite rootClk∘inc≡suc∘rootClk t₁′ | getUpdatedNodesJoin-fix-rootClk t₁ t₂ eq = {!!}
 
 eid≡clk : ∀ (e : Event pid eid) → eid ≡ rootClk treeClock[ e ]
 eid≡clk {_} {zero} init = refl
 eid≡clk {_} {(suc _)} (send m e)
   with treeClock[ e ] | inspect (treeClock[_]) e
 ... | (node _ (clk , _)  _) | Eq.[ eq ] = cong suc (transitive (eid≡clk e) (cong rootClk eq))
-eid≡clk  {_} {suc _} (recv neq e e′) rewrite rootClk∘join≡suc∘rootClk treeClock[ e ] treeClock[ e′ ] = cong suc (eid≡clk e′)
-
+eid≡clk  {_} {suc _} (recv e e′) rewrite rootClk∘join≡suc∘rootClk treeClock[ e ] treeClock[ e′ ] = cong suc (eid≡clk e′)
 
 _TC-root≡_ : ClockTree → ClockTree → Set 
 _TC-root≡_  t t′ = rootPid t ≡ rootPid t′ × rootClk t ≡ rootClk t′
@@ -112,7 +110,7 @@ treeOrder : ∀ {pid pid′} {eid eid′} {e : Event pid eid} {e′ : Event pid�
 treeOrder {e = e} {e′ = e′} x                      with treeClock[ e ] | treeClock[ e′ ] | inspect treeClock[_] e | inspect treeClock[_] e′
 treeOrder {e = e} {e′ = init} (immed _ _)          | _ | (node _ _ (_ ∷ _))  | _           | ()
 treeOrder {e = e} {send _ e′} x                    | t | _                   | Eq.[ refl ] | Eq.[ refl ]  with e₁ , y ← treeOrder {e = e} (inc-irrelev-childOf₂ x) = e₁ , trans y processOrder₁
-treeOrder {e = e} {e′ = recv _ e′ e′₁} (immed _ x) | node k v _ | node _ _ (node k′ v′ _ ∷ _) | _ | _ = {!!}
+treeOrder {e = e} {e′ = recv e′ e′₁} (immed _ x) | node k v _ | node _ _ (node k′ v′ _ ∷ _) | _ | _ = {!!}
 treeOrder {e = e} {e′ = e′} (trans x x₁)           | _ | t | _ | _ = {!!}
 
 
