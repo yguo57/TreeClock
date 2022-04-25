@@ -2,11 +2,12 @@ open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_≤?_;_≤_;_<?_)
 
 module TreeClock.TreeClock (n : ℕ) (Message : Set) where
 
-open import Event.Event n Message
+open import Event.Execution n Message
 open import Event.HappensBefore n Message
+open import Event.WellFormed n Message
 
 open import Data.Bool using (if_then_else_)
-open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_)
+open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;maybe′)
 open import Data.Fin as Fin using (Fin;fromℕ)
 open import Data.Product using (_×_;_,_;map₁;proj₁)
 open import Data.List using (List;[];_∷_;foldl;[_])
@@ -18,19 +19,14 @@ open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Relation.Binary renaming (Decidable to Dec)
 open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;inspect;subst)
 
--- util for maybe
-appendMaybe : ∀{A : Set} → Maybe A → List A → List A
-appendMaybe nothing  xs = xs
-appendMaybe (just x) xs = x ∷ xs
-
 private
   variable
     pid pid′ pid″ : ProcessId
-    eid eid′ eid″ : LocalEventId
     m  : Message
-    e  : Event pid  eid
-    e′ : Event pid′ eid′
-    e″ : Event pid″ eid″
+    e  : Event pid  
+    e′ : Event pid′ 
+    e″ : Event pid″
+    s  : same-origin e′ e
 
 
 data MapTree (K : Set) (V : Set) : Set where
@@ -89,6 +85,9 @@ pushChild (node q (c , _) ts) (node p n@(c′ , _) ts′) = node p n (newChild �
   where
    newChild = node q (c , c′) ts
 
+appendMaybe : ∀{A : Set} → Maybe A → List A → List A
+appendMaybe mx xs = maybe′ (_∷ xs) xs mx
+
  -- discover any updated nodes in the first tree compared to the second tree
 
 getUpdatedNodesJoin : ClockTree →  ClockTree → Maybe ClockTree
@@ -123,12 +122,15 @@ join t₁ t₂ with getUpdatedNodesJoin t₁ t₂
 ...             | nothing  = inc t₁′ 
 ...             | just t₂′ = pushChild t₁′ (inc t₂′)
 
-
  -- in the context of tree clocks, send is release and recv is acquire
  
-treeClock[_] : Event pid eid → ClockTree
-treeClock[_] {pid} init = initTree pid
-treeClock[_] {pid} (send x e) = inc treeClock[ e ]
-treeClock[_] {pid} (recv e′ e) =  join treeClock[ e′ ] treeClock[ e ]
+-- treeClock[_] : Event pid → ClockTree
+-- treeClock[_] {pid} init = initTree pid
+-- treeClock[_] {pid} (send _ e) = inc treeClock[ e ]
+-- treeClock[_] {pid} (recv e′ e) =  join treeClock[ e′ ] treeClock[ e ]
 
+treeClock[_,_] : (e : Event pid) → Wellformed e → ClockTree
+treeClock[_,_] {pid} init    _ = initTree pid
+treeClock[_,_] {pid} (send _ e) (wf-send wf) = inc treeClock[ e  , wf ]
+treeClock[_,_] {pid} (recv e′ e) (wf-recv wf′ wf _ _ ) =  join treeClock[ e′ , wf′ ] treeClock[ e , wf ]
 
