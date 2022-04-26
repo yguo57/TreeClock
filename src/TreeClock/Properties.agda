@@ -12,9 +12,9 @@ open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Relation.Unary.Any using(Any;here;there)
 open import Data.Maybe.Base using (nothing;just;boolToMaybe)
 open import Data.Product using (_×_ ; _,_;Σ-syntax;proj₁;proj₂)
-open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;inspect;subst;cong) renaming (trans to transitive)
+open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;inspect;subst;cong;sym) renaming (trans to transitive)
 open import Relation.Binary.HeterogeneousEquality using (_≅_)
-open import Relation.Nullary using (yes; no; does)
+open import Relation.Nullary using (yes; no; does;¬_)
 
 private
   variable
@@ -62,6 +62,9 @@ rootClk (node _ (clk , _)  _) = clk
 rootAclk : ClockTree → ℕ
 rootAclk (node _ ( _ , aclk )  _) = aclk
 
+rootChild : ClockTree → List ClockTree
+rootChild (node _ _ ts) = ts
+
 postulate
   rootClk∘inc≡suc∘rootClk : ∀ t → rootClk (inc t) ≡ suc (rootClk t)
   getUpdatedNodesJoin-fix-rootClk : ∀ t₁ t₂ {t₁′} → getUpdatedNodesJoin t₁ t₂ ≡ just t₁′ → rootClk t₁′ ≡ rootClk t₁
@@ -86,31 +89,40 @@ eid≡clk  {_} {suc _} (recv e e′) rewrite rootClk∘join≡suc∘rootClk tree
 _TC-root≡_ : ClockTree → ClockTree → Set 
 _TC-root≡_  t t′ = rootPid t ≡ rootPid t′ × rootClk t ≡ rootClk t′
 
-data _childOf_ {K : Set} {V : Set} {_tree≡_ : MapTree K V → MapTree K V → Set}  : MapTree K V → MapTree K V → Set where
-  immed : ∀ {k : K} {v : V} {ts : List (MapTree K V)} → (t : MapTree K V) → Any (t tree≡_)  ts → t childOf (node k v ts)
-  trans : ∀{t₁ t₂ t₃} → _childOf_ {_tree≡_ = _tree≡_ } t₁ t₂ → _childOf_ { _tree≡_  = _tree≡_ } t₂ t₃ → t₁ childOf t₃
+_TC-root∈_ : ClockTree → List ClockTree → Set 
+_TC-root∈_  t ts = Any (t  TC-root≡_) ts
 
-_TC-childOf_ = _childOf_{_tree≡_ = _TC-root≡_}
+-- data _childOf_ {K : Set} {V : Set} {_tree≡_ : MapTree K V → MapTree K V → Set}  : MapTree K V → MapTree K V → Set where
+--   immed : ∀ {k : K} {v : V} {ts : List (MapTree K V)} → (t : MapTree K V) → Any (t tree≡_)  ts → t childOf (node k v ts)
+--   recur : ∀{t₁ t₂ t₃} → _childOf_ {_tree≡_ = _tree≡_ } t₁ t₂ → _childOf_ { _tree≡_  = _tree≡_ } t₂ t₃ → t₁ childOf t₃
 
-inc-irrelev-child :  ∀{k v k′ v′ ts ts′} →  inc (node k′ v′ ts′) ≡ (node k v ts) → ts ≡ ts′
-inc-irrelev-child {ts = ts} {ts′ = .ts} refl = refl
+-- inc-irrelev-child :  ∀{k v k′ v′ ts ts′} →  inc (node k′ v′ ts′) ≡ (node k v ts) → ts ≡ ts′
+-- inc-irrelev-child {ts = ts} {ts′ = .ts} refl = refl
 
-inc-irrelev-childOf₁ : ∀ {t t′} → (t TC-childOf t′) → (t TC-childOf (inc t′))
-inc-irrelev-childOf₁ (immed _ x) = immed _ x
-inc-irrelev-childOf₁ (trans x y) = trans x (inc-irrelev-childOf₁ y)
+-- inc-irrelev-childOf₁ : ∀ {t t′} → (t TC-childOf t′) → (t TC-childOf (inc t′))
+-- inc-irrelev-childOf₁ (immed _ x) = immed _ x
+-- inc-irrelev-childOf₁ (recur x y) = recur x (inc-irrelev-childOf₁ y)
 
-inc-irrelev-childOf₂ : ∀ {t t′} → (t TC-childOf (inc t′)) → (t TC-childOf t′)
-inc-irrelev-childOf₂ {t′ = t′} x            with inc t′  | inspect inc t′ 
-inc-irrelev-childOf₂ {t′ = node _ _ ts′} (immed _ x)    | _  | Eq.[ eq ] rewrite inc-irrelev-child eq = immed _ x
-inc-irrelev-childOf₂ {t′ = t′} (trans x y)              | _  | Eq.[ refl ] = trans x (inc-irrelev-childOf₂ y)
+-- inc-irrelev-childOf₂ : ∀ {t t′} → (t TC-childOf (inc t′)) → (t TC-childOf t′)
+-- inc-irrelev-childOf₂ {t′ = t′} x            with inc t′  | inspect inc t′ 
+-- inc-irrelev-childOf₂ {t′ = node _ _ ts′} (immed _ x)    | _  | Eq.[ eq ] rewrite inc-irrelev-child eq = immed _ x
+-- inc-irrelev-childOf₂ {t′ = t′} (recur x y)              | _  | Eq.[ refl ] = recur x (inc-irrelev-childOf₂ y)
 
- -- TODO: change to universal quantifier
-treeOrder : ∀ {pid pid′} {eid eid′} {e : Event pid eid} {e′ : Event pid′ eid′} →
-            treeClock[ e ] TC-childOf treeClock[ e′ ] → Σ[ e₁ ∈ Event pid eid ] e₁ ⊏ e′
-treeOrder {e = e} {e′ = e′} x                      with treeClock[ e ] | treeClock[ e′ ] | inspect treeClock[_] e | inspect treeClock[_] e′
-treeOrder {e = e} {e′ = init} (immed _ _)          | _ | (node _ _ (_ ∷ _))  | _           | ()
-treeOrder {e = e} {send _ e′} x                    | t | _                   | Eq.[ refl ] | Eq.[ refl ]  with e₁ , y ← treeOrder {e = e} (inc-irrelev-childOf₂ x) = e₁ , trans y processOrder₁
-treeOrder {e = e} {e′ = recv e′ e′₁} (immed _ x) | node k v _ | node _ _ (node k′ v′ _ ∷ _) | _ | _ = {!!}
-treeOrder {e = e} {e′ = e′} (trans x x₁)           | _ | t | _ | _ = {!!}
+-- ¬childOf[] : ∀ {K V} {_≡_}{k : K} {v : V} → (t : MapTree K V) → ¬ _childOf_ {_tree≡_ = _≡_} t (node k v [])
+-- ¬childOf[] t (recur c c₁) = ¬childOf[] _ c₁
 
+-- treeOrder : ∀ {pid pid′} {eid eid′} {e : Event pid eid} {e′ : Event pid′ eid′} →
+--             treeClock[ e ] TC-childOf treeClock[ e′ ] → e ⊏ e′
+-- treeOrder {e = e} {e′ = e′} x                 with treeClock[ e ] | treeClock[ e′ ] | inspect treeClock[_] e | inspect treeClock[_] e′
+-- treeOrder {e = e} {e′ = init} x                  | w   | (node _ _ []) | _  | _ = ⊥-elim (¬childOf[] _ x)
+-- treeOrder {e = e} {e′ = init} x                  | _ | (node _ _ (_ ∷ _))  | _ | ()
+-- treeOrder {e = e} {send _ e′} x                  | _ | _  | Eq.[ refl ] | Eq.[ refl ]  with  y ← treeOrder {e = e} (inc-irrelev-childOf₂ x) = trans y processOrder₁
+-- treeOrder {e = e} {e′ = recv e′ e′₁} (immed _ (here px)) | node k v _ | node _ _ (node k′ v′ _ ∷ _) | _ | _ = {!!}
+-- treeOrder {e = e} {e′ = recv e′ e′₁} (immed _ (there x)) | node k v _ | node _ _ (node k′ v′ _ ∷ _) | _ | _ = {!!}
+-- treeOrder {e = e} {e′ = recv e′ e′₁} (recur {t₂ = t₂} x x₁)  | t₁ | t₃  | Eq.[ eq ]  | Eq.[ eq₂ ] = trans (treeOrder (subst (_TC-childOf t₂) (sym eq) x)) (treeOrder (subst (t₂ TC-childOf_ ) (sym eq₂) x₁))
 
+ -- change TC-childOf to be parametrized on events directly?
+ 
+data _TC-childOf_ : Event pid eid → Event pid′ eid′  → Set where
+  immed :  treeClock[ e ] TC-root∈ (rootChild treeClock[ e′ ]) → e TC-childOf e′
+  recur : e TC-childOf e′ → e′ TC-childOf e″ → e TC-childOf e″
