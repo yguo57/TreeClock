@@ -18,11 +18,6 @@ open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Relation.Binary renaming (Decidable to Dec)
 open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;inspect;subst)
 
--- util for maybe
-appendMaybe : ∀{A : Set} → Maybe A → List A → List A
-appendMaybe nothing  xs = xs
-appendMaybe (just x) xs = x ∷ xs
-
 private
   variable
     pid pid′ pid″ : ProcessId
@@ -32,14 +27,18 @@ private
     e′ : Event pid′ eid′
     e″ : Event pid″ eid″
 
-
-data MapTree (K : Set) (V : Set) : Set where
-   node : K → V → List (MapTree K V) → MapTree K V
-
  -- TODO stretch : add tree size check
 
 Value = ℕ × ℕ  -- clock plus attachement time
-ClockTree = MapTree ProcessId Value
+
+open import TreeClock.MapTree ProcessId Value as ClockTree
+
+ClockTree = MapTree 
+
+-- util for maybe
+appendMaybe : ∀{A : Set} → Maybe A → List A → List A
+appendMaybe nothing  xs = xs
+appendMaybe (just x) xs = x ∷ xs
 
  -- lookup the first node with ProcessId q
  
