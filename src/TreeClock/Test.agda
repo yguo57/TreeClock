@@ -8,6 +8,7 @@ module TreeClock.Test (Message : Set) (m₁ m₂ m₃ : Message)where
 
 open import Event.Event 4 Message
 open import TreeClock.TreeClock 4 Message
+open import TreeClock.MapTree ProcessId Value as ClockTree
 
 p₀ p₁ p₂ p₃ : ProcessId 
 p₀ = fromℕ< {m = 0}(s≤s z≤n)
@@ -52,6 +53,3 @@ _ : treeClock[ ev₃₂ ] ≡
   (node p₀ (0 , 1) [] ∷ [])
   ∷ [])
 _  = refl
-
-tree₁ : ClockTree
-tree₁ = {!!}

@@ -6,7 +6,7 @@ open import Event.Event n Message
 open import Event.HappensBefore n Message
 
 open import Data.Bool using (if_then_else_)
-open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_)
+open import Data.Maybe using (Maybe;just;nothing;_<∣>_;_>>=_;maybe′)
 open import Data.Fin as Fin using (Fin;fromℕ)
 open import Data.Product using (_×_;_,_;map₁;proj₁)
 open import Data.List using (List;[];_∷_;foldl;[_])
@@ -34,11 +34,6 @@ Value = ℕ × ℕ  -- clock plus attachement time
 open import TreeClock.MapTree ProcessId Value as ClockTree
 
 ClockTree = MapTree 
-
--- util for maybe
-appendMaybe : ∀{A : Set} → Maybe A → List A → List A
-appendMaybe nothing  xs = xs
-appendMaybe (just x) xs = x ∷ xs
 
  -- lookup the first node with ProcessId q
  
@@ -96,10 +91,9 @@ getUpdatedNodesJoin (node p (c , a) ts) t′ =
     nothing  → continue
     (just (c′ , _ )) → if does (c <? c′) then nothing else continue
   where
-    -- TODO : support early termination using attach time of nodes (only useful with thrMap)
     go : List ClockTree → List ClockTree
     go []       = []
-    go (t ∷ ts) = appendMaybe (getUpdatedNodesJoin t t′ )(go ts)
+    go (t ∷ ts) = maybe′ (_∷ go ts) (go ts) (getUpdatedNodesJoin t t′ )
     continue : Maybe ClockTree
     continue = just (node p (c , a)  (go ts))
 

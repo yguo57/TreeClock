@@ -22,7 +22,7 @@ private
   variable
     pid pid′ pid″ : ProcessId
     eid eid′ eid″ : LocalEventId
-    m  : Message
+    m : Message
     e  : Event pid  eid
     e′ : Event pid′ eid′
     e″ : Event pid″ eid″
@@ -82,7 +82,7 @@ data _TC-childOf_ : Event pid eid → Event pid′ eid′ → Set where
   recur : e TC-childOf e′ → e′ TC-childOf e″ → e TC-childOf e″ 
 
 inc-irrelev-child :  ∀ t →  children (inc t) ≡ children t
-inc-irrelev-child (node _ _ ts) = refl
+inc-irrelev-child _ = refl
 
 inc-irrelev-childOf₁ : ∀ t t′ → t root∈ (children t′) → t root∈ (children (inc t′))
 inc-irrelev-childOf₁ t t′ x = subst (t root∈_) (sym (inc-irrelev-child t′)) x 
@@ -91,7 +91,7 @@ inc-irrelev-childOf₂ :  ∀ t t′ → t root∈ (children (inc t′)) → t r
 inc-irrelev-childOf₂ t t′ x = subst (t root∈_ )  (inc-irrelev-child  t′) x 
 
 treeOrder₁ : ∀ {pid pid′} {eid eid′} {e : Event pid eid} {e′ : Event pid′ eid′} →
-            treeClock[ e ] root∈ (children treeClock[ e′ ]) → e ⊏ e′
+             treeClock[ e ] root∈ (children treeClock[ e′ ]) → e ⊏ e′
 treeOrder₁ {e = e} {e′ = e′} x  with treeClock[ e ] | treeClock[ e′ ] | inspect treeClock[_] e | inspect treeClock[_] e′
 treeOrder₁ {e = e} {e′ = init} ()               | _ | node _ _ [] | _ | _
 treeOrder₁ {e = e} {e′ = send _ e′} x           | t | _ | Eq.[ refl ] | Eq.[ eq ]  = trans y processOrder₁
@@ -102,12 +102,8 @@ treeOrder₁ {e = e} {e′ = recv e′ _} (here x)   | _ | node _ _ (t′ ∷ _)
   where
       helper : e′ ≅ e → e ⊏ recv e′ e″
       helper Hetero.refl = send⊏recv
-      y : treeClock[ e′ ] root≡ t′
-      y = join-attach-head {t = treeClock[ e′ ]} eq₂
-      z : treeClock[ e ] root≡ t′
-      z = subst (_root≡ t′) (sym eq) x
       w : treeClock[ e′ ] root≡ treeClock[ e ]
-      w = root≡-trans {treeClock[ e′ ]} {t′}{treeClock[ e ]}  y (root≡-sym {treeClock[ e ]} {t′}  z)
+      w = root≡-trans {treeClock[ e′ ]} {t′}{treeClock[ e ]} (join-attach-head {t = treeClock[ e′ ]} eq₂) (root≡-sym {treeClock[ e ]} {t′} (subst (_root≡ t′) (sym eq) x))
       
 treeOrder₁ {e = e} {e′ = recv e′ e″ } (there x) | t | node _ _ (_ ∷ ts)| Eq.[ refl ] | Eq.[ eq₂ ] = trans (treeOrder₁ (join-tail-no-new-node {t₁ = treeClock[ e′ ]} {t₂ = treeClock[ e″ ]} eq₂ {t₄ = t}  x )) processOrder₂
 
