@@ -22,3 +22,6 @@ data Event : ProcessId → Set where
        (e′ : Event pid′) →
        (e : Event pid) →
        Event pid
+
+pid[_] : Event pid → ProcessId
+pid[_] {pid} e = pid

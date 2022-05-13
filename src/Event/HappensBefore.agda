@@ -9,13 +9,12 @@ module Event.HappensBefore (n : ℕ) (Message : Set) where
 open import Event.Execution n Message
 open import Data.Empty using (⊥-elim)
 open import Data.Fin as Fin using (Fin)
-open import Data.Nat.Properties as ℕₚ
+open import Data.Nat.Properties as NatProp
 open import Data.Product using (_×_; _,_;∃-syntax;Σ-syntax)
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂; [_,_]′)
 open import Function using (_∘′_)
 open import Relation.Binary using (tri<; tri≈; tri>)
-open import Relation.Binary.HeterogeneousEquality using (_≅_; refl; _≇_; subst)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; _≢_; sym)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; _≢_; sym; inspect; cong; subst)
 open import Relation.Nullary using (¬_; yes; no)
 
 private
@@ -35,21 +34,53 @@ data _⊏_ : Event pid → Event pid′ → Set where
 _∥_ : Event pid → Event pid′ → Set
 _∥_ e e′ = ¬ e ⊏ e′ × ¬ e′ ⊏ e
 
-data _∈_ : Event pid → Event pid′ → Set where
-  refl∈ : e ∈ e
-  send∈ : e ∈ send m e
-  recv∈ : e ∈ recv e′ e
+data _prec_ : Event pid → Event pid → Set where
+  send : e prec send m e
+  recv : e prec recv e′ e
 
+data _∈_ : Event pid → Event pid → Set where
+  refl  : e ∈ e
+  trans : e prec e′ → e′ ∈ e″ → e ∈ e″
+  
 Execution : Set
 Execution = ∀ pid → Event pid
 
 same-origin : Event pid → Event pid′ → Set
-same-origin {pid′} {pid} e′ e = Σ[ exec ∈ Execution ] e′ ∈ exec pid′ × e ∈ exec pid
+same-origin {pid} {pid′} e e′ = Σ[ exec ∈ Execution ] e ∈ exec pid × e′ ∈ exec pid′
   
-eid : Event pid → ℕ
-eid init        = zero
-eid (send _ e)  = suc (eid e)
-eid (recv e e′) = suc (eid e′)
+eid[_] : Event pid → ℕ
+eid[_] init        = zero
+eid[_] (send _ e)  = suc (eid[ e ])
+eid[_] (recv e e′) = suc (eid[ e′ ])
+
+prec-eid-suc : e prec e′ → suc eid[ e ] ≡ eid[ e′ ]
+prec-eid-suc send = refl
+prec-eid-suc recv = refl
+
+prec-eid : e prec e′ → eid[ e ] < eid[ e′ ]
+prec-eid send = s≤s ≤-refl
+prec-eid recv = s≤s ≤-refl
+
+∈-eid : e ∈ e′ → eid[ e ] ≤ eid[ e′ ]
+∈-eid refl         = ≤-refl
+∈-eid (trans x y)  = <⇒≤ (<-transˡ (prec-eid x) (∈-eid y))
+
+uniquely-identify-eid₁ : e prec e″ → e′ prec e″ → e ≡ e′
+uniquely-identify-eid₁ send send = refl
+uniquely-identify-eid₁ recv recv = refl
+
+uniquely-identify-eid : e ∈ e″ → e′ ∈ e″ → eid[ e ] ≡ eid[ e′ ] → e ≡ e′
+uniquely-identify-eid refl refl _ = refl
+uniquely-identify-eid refl (trans x y) z = ⊥-elim (<⇒≢ (<-transˡ (prec-eid x) (∈-eid y)) (sym z))
+uniquely-identify-eid (trans x y) refl z =  ⊥-elim (<⇒≢ (<-transˡ (prec-eid x) (∈-eid y)) z )
+uniquely-identify-eid {e′ = e′} (trans {e′ = e₁} x y) (trans {e′ = e₂} z w) v = uniquely-identify-eid₁ x (subst  (e′ prec_) (uniquely-identify-eid w y s) z) 
+  where
+    s : eid[ e₂ ] ≡ eid[ e₁ ]
+    s rewrite sym (prec-eid-suc x) | sym (prec-eid-suc z) = cong suc (sym v)
+
+
+uniquely-identify : same-origin e e′ → pid[ e ] ≡ pid[ e′ ] → eid[ e ] ≡ eid[ e′ ] → e ≡ e′
+uniquely-identify (_ , e∈ex , e′∈ex) _ eid≡ = uniquely-identify-eid e∈ex e′∈ex eid≡
 ------------------------------------------------------------------------
 -- Properties about `_⊏_`, in particular, it's a strict partial order.
 
