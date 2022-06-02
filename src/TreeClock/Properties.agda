@@ -27,15 +27,6 @@ private
     e′ : Event pid′ eid′
     e″ : Event pid″ eid″
 
-rootPid : ClockTree → ProcessId
-rootPid (node pid _  _) = pid
-
-rootClk : ClockTree → ℕ
-rootClk (node _ (clk , _)  _) = clk
-
-rootAclk : ClockTree → ℕ
-rootAclk (node _ ( _ , aclk )  _) = aclk
-
 postulate
   rootClk∘inc≡suc∘rootClk : ∀ t → rootClk (inc t) ≡ suc (rootClk t)
   getUpdatedNodesJoin-fix-rootClk : ∀ t₁ t₂ {t₁′} → getUpdatedNodesJoin t₁ t₂ ≡ just t₁′ → rootClk t₁′ ≡ rootClk t₁
@@ -66,7 +57,7 @@ _root∈_  t ts = Any (t  root≡_) ts
 postulate
   join-attach-head : ∀ {k v ts t t′ t″} →  join t t′ ≡ node k v (t″ ∷ ts) → t root≡ t″
   join-tail-no-new-node : ∀ {k v ts t₁ t₂ t₃} →  join t₁ t₂ ≡ node k v (t₃ ∷ ts) → ∀{t₄} → t₄ root∈ ts → t₄ root∈ (children t₂)
-  pid≡rootPid : pid[ e ] ≡ rootPid treeClock[ e ]
+
   
 root≡-trans : ∀ {t t′ t″} → t root≡ t′ → t′ root≡ t″ → t root≡ t″
 root≡-trans (a , b) (c , d) =  transitive a c , transitive b d
