@@ -1,104 +1,97 @@
-open import Data.Nat using (ℕ;zero;suc;_≟_;_<_;_≤?_;_≤_;_<?_;_<ᵇ_)
+open import Data.Nat using (ℕ; zero; suc; _≟_; _<_; _≤?_; _≤_; _<?_; _<ᵇ_)
 
 module TreeClock.Properties (n : ℕ) (Message : Set) where
 
-open import TreeClock.TreeClock n Message
 open import Event.Event n Message
-open import TreeClock.MapTree ProcessId Value as ClockTree
-open ClockTree.MapTree
-open import Event.HappensBefore n Message
-open import Data.Empty using (⊥-elim)
-open import Data.Fin as Fin using (_≟_;suc)
-open import Data.List using (List;[];_∷_)
-open import Data.List.Membership.Propositional using (_∈_)
-open import Data.List.Relation.Unary.Any using(Any;here;there)
-open import Data.Maybe.Base using (nothing;just;boolToMaybe)
-open import Data.Product using (_×_ ; _,_;Σ-syntax;proj₁;proj₂;uncurry′)
-open import Relation.Binary.PropositionalEquality as Eq using (_≡_;refl;inspect;subst;cong;sym) renaming (trans to transitive)
-open import Relation.Binary.HeterogeneousEquality as Hetero using (_≅_)
-open import Relation.Nullary using (yes; no; does;¬_)
+open import TreeClock.MapTree
+open MapTree
+open import TreeClock.TreeClock n Message
 
-private
-  variable
-    pid pid′ pid″ : ProcessId
-    eid eid′ eid″ : LocalEventId
-    m : Message
-    e  : Event pid  eid
-    e′ : Event pid′ eid′
-    e″ : Event pid″ eid″
+open import Data.Product using (proj₁)
+open import Data.Maybe using (just; nothing)
+open import Data.Maybe.Properties using (just-injective)
+open import Data.Fin as Fin using (_≟_)
+open import Data.List using ([]; _∷_)
+open import Relation.Nullary using (yes; no; ¬_;does)
+open import Relation.Nullary.Decidable using (⌊_⌋)
+open import Relation.Binary renaming (Decidable to Dec)
+open import Relation.Binary.PropositionalEquality as Eq using (_≡_; refl; inspect; subst; _≢_; cong;trans;sym)
+    
+inc-preserves-pid : ∀ {t} → rootPid t ≡ rootPid (inc t)
+inc-preserves-pid = refl
 
-postulate
-  rootClk∘inc≡suc∘rootClk : ∀ t → rootClk (inc t) ≡ suc (rootClk t)
-  getUpdatedNodesJoin-fix-rootClk : ∀ t₁ t₂ {t₁′} → getUpdatedNodesJoin t₁ t₂ ≡ just t₁′ → rootClk t₁′ ≡ rootClk t₁
-  detachNodes-fix-rootClk : ∀ t₁ t₂ {t₂′} → detachNodes t₁ t₂ ≡ just t₂′ → rootClk t₂′ ≡ rootClk t₂
-  pushChild-fix-rootClk : ∀ t₁ t₂ → rootClk (pushChild t₁ t₂)  ≡ rootClk t₂
-                                                                                      
-rootClk∘join≡suc∘rootClk  : ∀ t t′ →  rootClk (join t t′) ≡ suc (rootClk t′)
-rootClk∘join≡suc∘rootClk t₁@(node pid (clk , _) _) t₂@(node pid′ (clk′ , _) _)
-  with getUpdatedNodesJoin t₁ t₂  | inspect (getUpdatedNodesJoin t₁) t₂
-... | nothing  | _  rewrite rootClk∘inc≡suc∘rootClk t₁  = cong suc refl
-... | just t₁′ | Eq.[ eq ] with detachNodes t₁′ t₂ | inspect (detachNodes t₁′) t₂
-...                         | just t₂′ | Eq.[ eq ] rewrite pushChild-fix-rootClk t₁′ (inc t₂′) | rootClk∘inc≡suc∘rootClk t₂′ | detachNodes-fix-rootClk t₁′ t₂ eq = cong suc refl 
-...                         | nothing  | _ rewrite rootClk∘inc≡suc∘rootClk t₁′ = cong suc {!!}
+removeNodes-preserves-pid : ∀ pid t t₁ → proj₁ (removeNode pid t) ≡ just t₁ → rootPid t ≡ rootPid t₁
+removeNodes-preserves-pid pid t _ _
+  with pid Fin.≟ key t 
+     | proj₁(removeNode pid t) | inspect proj₁ (removeNode pid t)
+removeNodes-preserves-pid pid t .y refl | yes _  | just y | Eq.[ () ] 
+removeNodes-preserves-pid pid t .y refl | no _   | just y | Eq.[ z ] = cong key (just-injective z)
 
-eid≡rootClk : eid[ e ] ≡ rootClk treeClock[ e ]
-eid≡rootClk {_} {zero} {e = init} = refl
-eid≡rootClk {_} {(suc _)} {e = send m e}
-  with treeClock[ e ] | inspect (treeClock[_]) e
-... | (node _ (clk , _)  _) | Eq.[ eq ] = cong suc (transitive (eid≡rootClk {e = e}) (cong rootClk eq))
-eid≡rootClk  {_} {suc _} {e = recv e e′} rewrite rootClk∘join≡suc∘rootClk treeClock[ e ] treeClock[ e′ ] = cong suc (eid≡rootClk {e = e′} )
+detachNodes-preserves-pid : ∀ t t′ t₁ → detachNodes t t′ ≡ just t₁ → rootPid t ≡ rootPid t₁
+detachNodes-preserves-pid  t t′ t₁ x
+  with proj₁ (removeNode (key t′) t)  | inspect proj₁ (removeNode (key t′) t) 
+detachNodes-preserves-pid  t t′ _ () | nothing | Eq.[ y ]
+detachNodes-preserves-pid  t t′@(node _ _ []) _ x | just t₂ | Eq.[ y ]
+  with w ← removeNodes-preserves-pid (key t′) t t₂ y
+  = trans w (cong key (just-injective  x))
+detachNodes-preserves-pid  t t′@(node _ _ (t₃ ∷ _)) _ x | just t₂ | Eq.[ y ]
+  with w ← removeNodes-preserves-pid (key t′) t t₂ y
+  = {!!}
 
-_root≡_ : ClockTree → ClockTree → Set
-_root≡_  t t′ = rootPid t ≡ rootPid t′ × rootClk t ≡ rootClk t′
+-- lesson: properties like pid≡rootPid that span multiple recursive functions should be proved on these functions separately.
 
-_root∈_ : MapTree → List MapTree → Set 
-_root∈_  t ts = Any (t  root≡_) ts
+-- detachNodesGo-preserves-pid : ∀ {k v ts t ts″ t′ t″} → detachNodes.go k v ts t ts″ t′ ≡ just t″ → rootPid t′ ≡ rootPid t″
+-- detachNodesGo-preserves-pid {k}{v} {ts} {t} {[]} {t′} {t″} x with detachNodes.go k v ts t [] t′ | inspect (detachNodes.go k v ts t []) t′+
+-- ... | just (node p _ _ ) | Eq.[ y ] = cong rootPid (just-injective (Eq.trans y x))
+-- detachNodesGo-preserves-pid {k}{v} {ts} {t} {th ∷ tt} {t′} {t″} x with detachNodes.go k v ts t (th ∷ tt) t′ | inspect (detachNodes.go k v ts t (th ∷ tt)) t′ | removeNode.go (MapTree.key th) (MapTree.key t′) (MapTree.value t′) (MapTree.children t′) (MapTree.children t′) | inspect (removeNode.go (MapTree.key th) (MapTree.key t′) (MapTree.value t′) (MapTree.children t′)) (MapTree.children t′) 
+-- ... | v | Eq.[ y ] | w | Eq.[ z ] rewrite z with MapTree.key th Fin.≟ MapTree.key t′ | (detachNodes.go (MapTree.key th) (MapTree.value th)(MapTree.children th) t′ (MapTree.children th) (node (MapTree.key t′) (MapTree.value t′) (proj₁ w)))
+-- detachNodesGo-preserves-pid {k}{v} {ts} {t} {th ∷ tt} {t′} {t″} x | s | Eq.[ y ] | w | Eq.[ z ] | no _ | just u with detachNodes.go (MapTree.key th) (MapTree.value th) (MapTree.children th) t′ (MapTree.children th) (node (MapTree.key t′) (MapTree.value t′) (proj₁ w))
+-- detachNodesGo-preserves-pid x | just v | Eq.[ y ] | w | Eq.[ z ] | no _ | just u | just x₁ = {!!}
+-- ... | nothing = {!!}
+-- detachNodesGo-preserves-pid x | v | Eq.[ y ] | w | Eq.[ z ] | no _ | nothing = {!!}
 
-postulate
-  join-attach-head : ∀ {k v ts t t′ t″} →  join t t′ ≡ node k v (t″ ∷ ts) → t root≡ t″
-  join-tail-no-new-node : ∀ {k v ts t₁ t₂ t₃} →  join t₁ t₂ ≡ node k v (t₃ ∷ ts) → ∀{t₄} → t₄ root∈ ts → t₄ root∈ (children t₂)
+-- pid≡rootPid : pid[ e ] ≡ rootPid treeClock[ e ]
+-- pid≡rootPid {e = init} = refl
+-- pid≡rootPid {e = send _ e} = pid≡rootPid {e = e}
+-- pid≡rootPid {e = recv e e′} with rootPid treeClock[ e ] Fin.≟ rootPid treeClock[ e′ ] |  inspect (rootPid treeClock[ e ] Fin.≟_) (rootPid treeClock[ e′ ])
+-- pid≡rootPid {e = recv e e′} | yes _ | _ with rootClk treeClock[ e ] <ᵇ rootClk treeClock[ e′ ] | inspect (rootClk treeClock[ e ] <ᵇ_) (rootClk treeClock[ e′ ])
+-- pid≡rootPid {e = recv e e′} | yes _ | _ | true  | Eq.[ eq ] rewrite eq = pid≡rootPid {e = e′}
+-- pid≡rootPid {e = recv e e′} | yes _ | Eq.[ eq ] | false | _ rewrite eq  with rootPid treeClock[ e′ ] Fin.≟ rootPid treeClock[ e ]
+-- pid≡rootPid {e = recv e e′} | yes _ | _ | false | _   | yes z  = Eq.trans (pid≡rootPid {e = e′} ) z
+-- pid≡rootPid {e = recv e e′} | yes x | _ | false | _   | no z   = ⊥-elim (z (Eq.sym x))
+-- pid≡rootPid {e = recv e e′} | no  _ | _  with lookupNode.go (rootPid treeClock[ e ]) (rootPid treeClock[ e′ ]) (MapTree.value treeClock[ e′ ]) (MapTree.children treeClock[ e′ ])(MapTree.children treeClock[ e′ ]) 
+-- pid≡rootPid {e = recv e e′} | no  _ | _          | just (c , _)  with rootClk treeClock[ e ] <ᵇ c  
+-- pid≡rootPid {e = recv e e′} | no  _ | _          | just _       | true  = pid≡rootPid {e = e′}
+-- pid≡rootPid {e = recv e e′} | no  _ |  Eq.[ eq ] | just _       | false rewrite eq with removeNode.go (rootPid treeClock[ e ]) (rootPid treeClock[ e′ ]) (MapTree.value treeClock[ e′ ]) (MapTree.children treeClock[ e′ ])(MapTree.children treeClock[ e′ ]) | getUpdatedNodesJoin.go (rootPid treeClock[ e ]) (rootClk treeClock[ e ]) (rootAclk treeClock[ e ]) (MapTree.children treeClock[ e ]) treeClock[ e′ ] (MapTree.children treeClock[ e ])
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | just _       | false | (z  , _) | [] with detachNodes.go (rootPid treeClock[ e ]) (MapTree.value treeClock[ e ]) [] treeClock[ e′ ] [] (node (rootPid  treeClock[ e′ ]) (MapTree.value treeClock[ e′ ]) z)
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | just _       | false | _  | _ | _ =  pid≡rootPid {e = e′}
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | just _       | false | (z  , _) | w ∷ ws with detachNodes w (node (rootPid  treeClock[ e′ ]) (MapTree.value treeClock[ e′ ]) z)
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | just _       | false | _  | _ | nothing = {!!}
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | just _       | false | _  | _ | just (node _ _ _)  =  {!!}
+-- pid≡rootPid {e = recv e e′} | no  _ |  Eq.[ eq ] | nothing rewrite eq with removeNode.go (rootPid treeClock[ e ]) (rootPid treeClock[ e′ ]) (MapTree.value treeClock[ e′ ]) (MapTree.children treeClock[ e′ ])(MapTree.children treeClock[ e′ ]) | getUpdatedNodesJoin.go (rootPid treeClock[ e ]) (rootClk treeClock[ e ]) (rootAclk treeClock[ e ]) (MapTree.children treeClock[ e ]) treeClock[ e′ ] (MapTree.children treeClock[ e ])
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | nothing | (z  , _) | w with detachNodes.go (rootPid treeClock[ e ]) (MapTree.value treeClock[ e ]) w treeClock[ e′ ] w (node (rootPid  treeClock[ e′ ]) (MapTree.value treeClock[ e′ ]) z)
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | nothing | _ | _ | just (node k _ _) = {!!}
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | nothing | _ | w | nothing with rootPid treeClock[ e′ ] Fin.≟ rootPid treeClock[ e ] | removeNode.go (MapTree.key treeClock[ e′ ])(MapTree.key treeClock[ e ]) (MapTree.value treeClock[ e ]) w w
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | nothing | _ | _  | nothing | no _ | _ , nothing = pid≡rootPid {e = e′}
+-- pid≡rootPid {e = recv e e′} | no  _ |  _         | nothing | _ | _  | nothing | no _ | _ ,  just (node k _ _) = {!!}
+-- pid≡rootPid {e = recv e e′} | no  x |  _         | nothing | _ | _  | nothing | yes z | _ = ⊥-elim (x (Eq.sym z))
 
-  
-root≡-trans : ∀ {t t′ t″} → t root≡ t′ → t′ root≡ t″ → t root≡ t″
-root≡-trans (a , b) (c , d) =  transitive a c , transitive b d
+-- lookup-rootPid-inc∘tc≡suc∘lookup-rootPid-tc : ∀ {pid eid n} {: Event pid eid}  → lookupClk pid[ e ] treeClock[ e ] ≡ just n →  lookupClk pid[ e ] (inc treeClock[ e ]) ≡ just (suc n)
+-- lookup-rootPid-inc∘tc≡suc∘lookup-rootPid-tc {e = e} _ with lookupClk pid[ e ] (treeClock[ e ]) | inspect (lookupClk pid[ e ])( treeClock[ e ]) 
+-- lookup-rootPid-inc∘tc≡suc∘lookup-rootPid-tc {pid = Fin.zero} e@{e = init} x  | just n | Eq.[ refl ]  = cong just (cong suc (just-injective x))
+-- lookup-rootPid-inc∘tc≡suc∘lookup-rootPid-tc {pid = Fin.zero} {e = send _ e} x  | just n | Eq.[ q ] = {!!}
+-- lookup-rootPid-inc∘tc≡suc∘lookup-rootPid-tc {pid = Fin.zero} {e = recv e e₁} x | _ | _ = {!!}
+-- lookup-rootPid-inc∘tc≡suc∘lookup-rootPid-tc {pid = Fin.suc pid}  x | just n | Eq.[ q ]  = {!!}
 
-root≡-sym : ∀ {t t′} → t root≡ t′ → t′ root≡ t
-root≡-sym (a , b) =  sym a , sym b
+-- _TC≺_ : ClockCompare
+-- e TC≺ e′ = ∀{n} → e ≢ init × rootClk treeClock[ e ] ≤ lookupClk pid[ e ] treeClock[ e′] × e ≇ e′
 
-root≡⇒Pid≡×Clk≡ : treeClock[ e ] root≡ treeClock[ e′ ] → pid[ e ] ≡ pid[ e′ ] × eid[ e ] ≡ eid[ e′ ]
-root≡⇒Pid≡×Clk≡ {e = e} {e′ = e′} (a , b) = transitive (transitive (pid≡rootPid {e = e}) a) (sym (pid≡rootPid {e = e′}) ) , transitive (transitive (eid≡rootClk {e = e})  b) (sym (eid≡rootClk {e = e′}))
+-- open ⊏-PreservingRules
 
-data _TC-childOf_ : Event pid eid → Event pid′ eid′ → Set where
-  immed : treeClock[ e ] root∈ (children treeClock[ e′ ]) → e TC-childOf e′
-  recur : e TC-childOf e′ → e′ TC-childOf e″ → e TC-childOf e″ 
-
-inc-irrelev-child :  ∀ t →  children (inc t) ≡ children t
-inc-irrelev-child _ = refl
-
-inc-irrelev-childOf₁ : ∀ t t′ → t root∈ (children t′) → t root∈ (children (inc t′))
-inc-irrelev-childOf₁ t t′ x = subst (t root∈_) (sym (inc-irrelev-child t′)) x 
-
-inc-irrelev-childOf₂ :  ∀ t t′ → t root∈ (children (inc t′)) → t root∈ (children t′)
-inc-irrelev-childOf₂ t t′ x = subst (t root∈_ )  (inc-irrelev-child  t′) x 
-
-treeOrder₁ : ∀ {pid pid′} {eid eid′} {e : Event pid eid} {e′ : Event pid′ eid′} →
-             treeClock[ e ] root∈ (children treeClock[ e′ ]) → e ⊏ e′
-treeOrder₁ {e = e} {e′ = e′} x  with treeClock[ e ] | treeClock[ e′ ] | inspect treeClock[_] e | inspect treeClock[_] e′
-treeOrder₁ {e = e} {e′ = init} ()               | _ | node _ _ [] | _ | _
-treeOrder₁ {e = e} {e′ = send _ e′} x           | t | _ | Eq.[ refl ] | Eq.[ eq ]  = trans y processOrder₁
-  where
-    y : e ⊏ e′
-    y = treeOrder₁ {e = e} (inc-irrelev-childOf₂ t treeClock[ e′ ] (subst (λ t → treeClock[ e ] root∈ (children t)) (sym eq) x ))
-treeOrder₁ {e = e} {e′ = recv e′ _} (here x)   | _ | node _ _ (t′ ∷ _) | Eq.[ eq ] | Eq.[ eq₂ ] = helper (uncurry′ uniquely-identify (root≡⇒Pid≡×Clk≡ {e = e′} {e′ = e} w))
-  where
-      helper : e′ ≅ e → e ⊏ recv e′ e″
-      helper Hetero.refl = send⊏recv
-      w : treeClock[ e′ ] root≡ treeClock[ e ]
-      w = root≡-trans {treeClock[ e′ ]} {t′}{treeClock[ e ]} (join-attach-head {t = treeClock[ e′ ]} eq₂) (root≡-sym {treeClock[ e ]} {t′} (subst (_root≡ t′) (sym eq) x))
-      
-treeOrder₁ {e = e} {e′ = recv e′ e″ } (there x) | t | node _ _ (_ ∷ ts)| Eq.[ refl ] | Eq.[ eq₂ ] = trans (treeOrder₁ (join-tail-no-new-node {t₁ = treeClock[ e′ ]} {t₂ = treeClock[ e″ ]} eq₂ {t₄ = t}  x )) processOrder₂
-
-treeOrder : ∀ {pid pid′} {eid eid′} {e : Event pid eid} {e′ : Event pid′ eid′} →
-            e TC-childOf e′ → e ⊏ e′
-treeOrder (immed x) = treeOrder₁ x
-treeOrder (recur {e′ = e′} x y) = trans {e′ = e′} (treeOrder x) (treeOrder y)
+-- TC≺-⊏-Preserving : ⊏-PreservingRules _TC≺_
+-- ⊏-preserving-rule₁ TC≺-⊏-Preserving {e = e} with lookupClk pid[ e ] (inc treeClock[ e ]) | inspect (lookupClk pid[ e ]) (inc treeClock[ e ])
+-- ... | just x  | _  = {!!} , ({!!} , {!!})
+-- ... | nothing | _ = {!!} , ({!!} , {!!})
+-- ⊏-preserving-rule₂ TC≺-⊏-Preserving = {!!}
+-- ⊏-preserving-rule₃ TC≺-⊏-Preserving = {!!}
+-- ⊏-preserving-trans  TC≺-⊏-Preserving x y = {!!}
